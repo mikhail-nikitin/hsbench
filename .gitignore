@@ -5,7 +5,9 @@
 *.dylib
 
 *.log
-s3-benchmark
+hsbench
+
+vendor/
 
 # Test binary, build with `go test -c`
 *.test
@@ -15,3 +17,5 @@ s3-benchmark
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+
+.idea/
