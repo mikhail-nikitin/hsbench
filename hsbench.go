@@ -54,9 +54,9 @@ var HTTPTransport http.RoundTripper = &http.Transport{
 	}).Dial,
 	TLSHandshakeTimeout:   10 * time.Second,
 	ExpectContinueTimeout: 0,
-	// Set the number of idle connections to 2X the number of threads 
-	MaxIdleConnsPerHost: 2*threads,
-	MaxIdleConns:        2*threads,
+	// Set the number of idle connections to 2X the number of threads
+	MaxIdleConnsPerHost: 2 * threads,
+	MaxIdleConns:        2 * threads,
 	// But limit their idle time to 1 minute
 	IdleConnTimeout: time.Minute,
 	// Ignore TLS errors
@@ -646,6 +646,7 @@ func runBucketList(thread_num int, stats *Stats) {
 			&s3.ListObjectsInput{
 				Bucket:  &buckets[bucket_num],
 				MaxKeys: &max_keys,
+				Prefix:  &object_prefix,
 			},
 			func(p *s3.ListObjectsOutput, last bool) bool {
 				end := time.Now().UnixNano()
@@ -843,11 +844,11 @@ NOTES:
   - Valid mode types for the -m mode string are:
     c: clear all existing objects from buckets (requires lookups)
     x: delete buckets
-    i: initialize buckets 
+    i: initialize buckets
     p: put objects in buckets
     l: list objects in buckets
     g: get objects from buckets
-    d: delete objects from buckets 
+    d: delete objects from buckets
 
     These modes are processed in-order and can be repeated, ie "ippgd" will
     initialize the buckets, put the objects, reput the objects, get the
