@@ -7,10 +7,7 @@ package main
 import (
 	"bytes"
 	"code.cloudfoundry.org/bytefmt"
-	"crypto/hmac"
 	"crypto/md5"
-	"crypto/sha1"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -23,8 +20,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net"
-	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -44,94 +39,6 @@ var max_keys, running_threads, bucket_count, object_count, object_size, op_count
 var object_count_flag bool
 var endtime time.Time
 var interval float64
-
-// Our HTTP transport used for the roundtripper below
-var HTTPTransport http.RoundTripper = &http.Transport{
-	Proxy: http.ProxyFromEnvironment,
-	Dial: (&net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}).Dial,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 0,
-	// Set the number of idle connections to 2X the number of threads
-	MaxIdleConnsPerHost: 2 * threads,
-	MaxIdleConns:        2 * threads,
-	// But limit their idle time to 1 minute
-	IdleConnTimeout: time.Minute,
-	// Ignore TLS errors
-	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-}
-
-var httpClient = &http.Client{Transport: HTTPTransport}
-
-func getS3Client() *s3.S3 {
-	// Build our config
-	creds := credentials.NewStaticCredentials(access_key, secret_key, "")
-	loglevel := aws.LogOff
-	// Build the rest of the configuration
-	awsConfig := &aws.Config{
-		Region:               aws.String(region),
-		Endpoint:             aws.String(url_host),
-		Credentials:          creds,
-		LogLevel:             &loglevel,
-		S3ForcePathStyle:     aws.Bool(true),
-		S3Disable100Continue: aws.Bool(true),
-		// Comment following to use default transport
-		HTTPClient: &http.Client{Transport: HTTPTransport},
-	}
-	session := session.New(awsConfig)
-	client := s3.New(session)
-	if client == nil {
-		log.Fatalf("FATAL: Unable to create new client.")
-	}
-	// Return success
-	return client
-}
-
-// canonicalAmzHeaders -- return the x-amz headers canonicalized
-func canonicalAmzHeaders(req *http.Request) string {
-	// Parse out all x-amz headers
-	var headers []string
-	for header := range req.Header {
-		norm := strings.ToLower(strings.TrimSpace(header))
-		if strings.HasPrefix(norm, "x-amz") {
-			headers = append(headers, norm)
-		}
-	}
-	// Put them in sorted order
-	sort.Strings(headers)
-	// Now add back the values
-	for n, header := range headers {
-		headers[n] = header + ":" + strings.Replace(req.Header.Get(header), "\n", " ", -1)
-	}
-	// Finally, put them back together
-	if len(headers) > 0 {
-		return strings.Join(headers, "\n") + "\n"
-	} else {
-		return ""
-	}
-}
-
-func hmacSHA1(key []byte, content string) []byte {
-	mac := hmac.New(sha1.New, key)
-	mac.Write([]byte(content))
-	return mac.Sum(nil)
-}
-
-func setSignature(req *http.Request) {
-	// Setup default parameters
-	dateHdr := time.Now().UTC().Format("20060102T150405Z")
-	req.Header.Set("X-Amz-Date", dateHdr)
-	// Get the canonical resource and header
-	canonicalResource := req.URL.EscapedPath()
-	canonicalHeaders := canonicalAmzHeaders(req)
-	stringToSign := req.Method + "\n" + req.Header.Get("Content-MD5") + "\n" + req.Header.Get("Content-Type") + "\n\n" +
-		canonicalHeaders + canonicalResource
-	hash := hmacSHA1([]byte(secret_key), stringToSign)
-	signature := base64.StdEncoding.EncodeToString(hash)
-	req.Header.Set("Authorization", fmt.Sprintf("AWS %s:%s", access_key, signature))
-}
 
 type IntervalStats struct {
 	loop         int
