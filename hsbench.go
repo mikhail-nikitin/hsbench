@@ -219,7 +219,7 @@ func (o *OutputStats) csv_header(w *csv.Writer) {
 
 	s := []string{
 		"Loop",
-		"Inteval",
+		"Interval",
 		"Duration(s)",
 		"Mode", "Ops",
 		"MB/s",
