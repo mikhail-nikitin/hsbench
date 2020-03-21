@@ -967,37 +967,69 @@ func main() {
 
 	// Write CSV Output
 	if output != "" {
-		file, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY, 0777)
-		defer file.Close()
-		if err != nil {
-			log.Fatal("Could not open CSV file for writing.")
-		} else {
-			csvWriter := csv.NewWriter(file)
-			for i, o := range oStats {
-				if i == 0 {
-					o.csv_header(csvWriter)
-				}
-				o.csv(csvWriter)
-			}
-			csvWriter.Flush()
-		}
+		outputCsv(output, oStats)
 	}
 
 	// Write JSON output
 	if json_output != "" {
-		file, err := os.OpenFile(json_output, os.O_CREATE|os.O_WRONLY, 0777)
-		defer file.Close()
-		if err != nil {
-			log.Fatal("Could not open JSON file for writing.")
-		}
-		data, err := json.Marshal(oStats)
-		if err != nil {
-			log.Fatal("Error marshaling JSON: ", err)
-		}
-		_, err = file.Write(data)
-		if err != nil {
-			log.Fatal("Error writing to JSON file: ", err)
-		}
-		file.Sync()
+		outputJson(json_output, oStats)
 	}
+}
+
+func outputCsv(output string, oStats []OutputStats) {
+	var file *os.File
+	var err error
+	defer func() {
+		if file != nil && file != os.Stdout {
+			_ = file.Close()
+		}
+	}()
+
+	if output == "-" {
+		file, err = os.Stdout, nil
+	} else {
+		file, err = os.OpenFile(output, os.O_CREATE|os.O_WRONLY, 0777)
+	}
+
+	if err != nil {
+		log.Fatal("Could not open CSV file for writing.")
+	} else {
+		csvWriter := csv.NewWriter(file)
+		for i, o := range oStats {
+			if i == 0 {
+				o.csv_header(csvWriter)
+			}
+			o.csv(csvWriter)
+		}
+		csvWriter.Flush()
+	}
+}
+
+func outputJson(output string, oStats []OutputStats) {
+	var file *os.File
+	var err error
+	defer func() {
+		if file != nil && file != os.Stdout {
+			_ = file.Close()
+		}
+	}()
+
+	if output == "-" {
+		file, err = os.Stdout, nil
+	} else {
+		file, err = os.OpenFile(output, os.O_CREATE|os.O_WRONLY, 0777)
+	}
+
+	if err != nil {
+		log.Fatal("Could not open JSON file for writing.")
+	}
+	data, err := json.Marshal(oStats)
+	if err != nil {
+		log.Fatal("Error marshaling JSON: ", err)
+	}
+	_, err = file.Write(data)
+	if err != nil {
+		log.Fatal("Error writing to JSON file: ", err)
+	}
+	_ = file.Sync()
 }
