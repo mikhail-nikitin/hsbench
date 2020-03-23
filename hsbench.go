@@ -29,6 +29,8 @@ import (
 	"time"
 )
 
+const nanoInMilli = 1000000
+
 // Global variables
 var access_key, secret_key, url_host, bucket_prefix, object_prefix, region, modes, output, json_output, sizeArg string
 var buckets []string
@@ -56,7 +58,6 @@ func (is *IntervalStats) makeOutputStats() OutputStats {
 	totalLat := int64(0)
 	minLat := float64(0)
 	maxLat := float64(0)
-	NinetyNineLat := float64(0)
 	avgLat := float64(0)
 	if ops > 0 {
 		minLat = float64(is.latNano[0]) / 1000000
@@ -65,8 +66,6 @@ func (is *IntervalStats) makeOutputStats() OutputStats {
 			totalLat += is.latNano[i]
 		}
 		avgLat = float64(totalLat) / float64(ops) / 1000000
-		NintyNineLatNano := is.latNano[int64(math.Round(0.99*float64(ops)))-1]
-		NinetyNineLat = float64(NintyNineLatNano) / 1000000
 	}
 	seconds := float64(is.intervalNano) / 1000000000
 	mbps := float64(is.bytes) / seconds / bytefmt.MEGABYTE
@@ -82,9 +81,23 @@ func (is *IntervalStats) makeOutputStats() OutputStats {
 		iops,
 		minLat,
 		avgLat,
-		NinetyNineLat,
+		is.getLatencyPercentile(50),
+		is.getLatencyPercentile(85),
+		is.getLatencyPercentile(90),
+		is.getLatencyPercentile(95),
+		is.getLatencyPercentile(99),
 		maxLat,
 		is.slowdowns}
+}
+
+func (is *IntervalStats) getLatencyPercentile(percentile int) float64 {
+	ops := len(is.latNano)
+	if ops == 0 {
+		return 0.0
+	}
+
+	index := int64(math.Round(float64(percentile)*float64(ops)/100)) - 1
+	return float64(is.latNano[index]) / nanoInMilli
 }
 
 type OutputStats struct {
@@ -97,6 +110,10 @@ type OutputStats struct {
 	Iops          float64
 	MinLat        float64
 	AvgLat        float64
+	MeanLat       float64
+	EightyFiveLat float64
+	NinetyLat     float64
+	NinetyFiveLat float64
 	NinetyNineLat float64
 	MaxLat        float64
 	Slowdowns     int64
@@ -104,7 +121,7 @@ type OutputStats struct {
 
 func (o *OutputStats) log() {
 	log.Printf(
-		"Loop: %d, Int: %s, Dur(s): %.1f, Mode: %s, Ops: %d, MB/s: %.2f, IO/s: %.0f, Lat(ms): [ min: %.1f, avg: %.1f, 99%%: %.1f, max: %.1f ], Slowdowns: %d",
+		"Loop: %d, Int: %s, Dur(s): %.1f, Mode: %s, Ops: %d, MB/s: %.2f, IO/s: %.0f, Lat(ms): [ min: %.1f, avg: %.1f, mean: %.1f, 85%%: %.1f, 90%%: %.1f, 95%%: %.1f, 99%%: %.1f, max: %.1f ], Slowdowns: %d",
 		o.Loop,
 		o.IntervalName,
 		o.Seconds,
@@ -114,6 +131,10 @@ func (o *OutputStats) log() {
 		o.Iops,
 		o.MinLat,
 		o.AvgLat,
+		o.MeanLat,
+		o.EightyFiveLat,
+		o.NinetyLat,
+		o.NinetyFiveLat,
 		o.NinetyNineLat,
 		o.MaxLat,
 		o.Slowdowns)
@@ -132,9 +153,13 @@ func (o *OutputStats) csv_header(w *csv.Writer) {
 		"MB/s",
 		"IO/s",
 		"Min Latency (ms)",
-		"Avg Latency(ms)",
-		"99% Latency(ms)",
-		"Max Latency(ms)",
+		"Avg Latency (ms)",
+		"Mean Latency (ms)",
+		"85% Latency (ms)",
+		"90% Latency (ms)",
+		"95% Latency (ms)",
+		"99% Latency (ms)",
+		"Max Latency (ms)",
 		"Slowdowns"}
 
 	if err := w.Write(s); err != nil {
@@ -157,6 +182,10 @@ func (o *OutputStats) csv(w *csv.Writer) {
 		strconv.FormatFloat(o.Iops, 'f', 2, 64),
 		strconv.FormatFloat(o.MinLat, 'f', 2, 64),
 		strconv.FormatFloat(o.AvgLat, 'f', 2, 64),
+		strconv.FormatFloat(o.MeanLat, 'f', 2, 64),
+		strconv.FormatFloat(o.EightyFiveLat, 'f', 2, 64),
+		strconv.FormatFloat(o.NinetyLat, 'f', 2, 64),
+		strconv.FormatFloat(o.NinetyFiveLat, 'f', 2, 64),
 		strconv.FormatFloat(o.NinetyNineLat, 'f', 2, 64),
 		strconv.FormatFloat(o.MaxLat, 'f', 2, 64),
 		strconv.FormatInt(o.Slowdowns, 10)}
